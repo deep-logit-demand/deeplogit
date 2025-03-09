@@ -124,7 +124,7 @@ We are deeply grateful to Franklin She for transforming our existing code into a
 
 ## Citing DeepLogit
 
-Our **DeepLogit** package borrows extensively from the code of the existing **Xlogit** package. Therefore, if you use **DeepLogit** in your work, please cite both our package and the original **Xlogit** package as follows:
+Our **DeepLogit** package borrows extensively from the code of the existing **Xlogit** package [(see here)](https://github.com/arteagac/xlogit). Therefore, if you use **DeepLogit** in your work, please cite both our package and the original **Xlogit** package as follows:
 
 Compiani, G., Morozov, I., & Seiler, S. (2023). Demand estimation with text and image data. SSRN Working Paper. [Link to paper](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4588941)
 
