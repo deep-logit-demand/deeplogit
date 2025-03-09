@@ -118,3 +118,14 @@ model.fit(
 
 For a full example, including the dataset used in this example, see the `examples/` directory in the repository.
 
+## Contributors
+
+We are deeply grateful to Franklin She for transforming our existing code into a user-friendly, well-documented Python package. We also thank Celina Park, Tanner Parsons, James Ryan, Janani Sekar, Andrew Sharng, Adam Sy, and Vitalii Tubdenov for their exceptional research assistance. The code they developed in the past either inspired this package or was directly used to build it.
+
+## Citing DeepLogit
+
+Our **DeepLogit** package borrows extensively from the code of the existing **Xlogit** package. Therefore, if you use **DeepLogit** in your work, please cite both our package and the original **Xlogit** package as follows:
+
+Compiani, G., Morozov, I., & Seiler, S. (2023). Demand estimation with text and image data. SSRN Working Paper. [Link to paper](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4588941)
+
+Arteaga, C., Park, J., Beeramoole, P. B., & Paz, A. (2022). Xlogit: An open-source Python package for GPU-accelerated estimation of Mixed Logit models. Journal of Choice Modelling, 42, 100339. [Link to paper](https://doi.org/10.1016/j.jocm.2021.100339)
