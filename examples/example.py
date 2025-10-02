@@ -42,11 +42,13 @@ def main():
             variables=variables_attributes,
             unstructured_data_path=unstructured_data_path,
             select_optimal_PC_RCs=True,
-            number_of_PCs=3,
+            number_of_PCs=2,
             n_draws=100,
             n_starting_points=100,
             print_results=True,
         )
+
+        print(model.best_varnames)
 
         # Predict market shares and diversion ratios
         predicted_market_shares = model.predict(data=long_choice_data)
