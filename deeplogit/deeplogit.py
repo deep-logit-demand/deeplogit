@@ -79,7 +79,7 @@ class DeepLogit:
         variables,
         unstructured_data_path,
         select_optimal_PC_RCs=True,
-        number_of_PCs=3,
+        number_of_PCs=6,
         n_draws=100,
         n_starting_points=100,
         print_results=True,
@@ -101,7 +101,8 @@ class DeepLogit:
                 The path to the unstructured data. If the data is images, this should be the path to the directory containing the images. If the data is text, this should be the path to the CSV file containing the text data.
 
             select_optimal_PC_RCs : bool, optional
-                True to select the AIC-minimizing combination of principal components via brute force algorithm. False to include all principal components without optimization. Default is True.
+                True to select the AIC-minimizing combination of principal components via selection algorithm described in "Demand Estimation with text and image data". 
+                False to include all principal components without optimization. Default is True.
 
             number_of_PCs : int, optional
                 The number of principal components to extract from the unstructured data. Default is 3.
@@ -201,6 +202,7 @@ class DeepLogit:
                 number_of_PCs, model_name
             )
 
+            # Select the model with most random coefficients if not optimizing
             if not select_optimal_PC_RCs:
                 max_randvars = max(
                     [len(randvars) for randvars in pc_specifications.values()]
@@ -209,33 +211,87 @@ class DeepLogit:
                     k: v for k, v in pc_specifications.items() if len(v) == max_randvars
                 }
 
-            for specification, randvars in pc_specifications.items():
-                if print_results:
-                    print("-" * 50)
-                    print(f"Trying model: {model_name}, specification: {specification}")
-                model = self._estimate_mixed_logit(
-                    data=data,
-                    varnames=varnames,
-                    randvars=randvars,
-                    n_draws=n_draws,
-                    num_starting_points=n_starting_points,
-                )
-                if print_results:
-                    print(f"LL: {model.loglikelihood}, AIC: {model.aic}")
-                if model.aic < best_AIC:
-                    best_model = model
-                    best_AIC = model.aic
-                    best_specification = specification
-                    best_embedding_model = model_name
-                    best_varnames = varnames
+                for specification, randvars in pc_specifications_step_j.items():
+                        if print_results:
+                            print("-" * 50)
+                            print(f"Trying model: {model_name}, specification: {specification}")
+                        model = self._estimate_mixed_logit(
+                            data=data,
+                            varnames=varnames,
+                            randvars=randvars,
+                            n_draws=n_draws,
+                            num_starting_points=n_starting_points,
+                        )
+                        if print_results:
+                            print(f"LL: {model.loglikelihood}, AIC: {model.aic}")
+                        if model.aic < best_AIC:
+                            best_model = model
+                            best_AIC = model.aic
+                            best_specification = specification
+                            best_embedding_model = model_name
+                            best_varnames = varnames
+            # Otherwise apply selection algorithm
+            else:
+                best_AIC_model = np.inf
+                best_specification_model = None
 
-        # 5. Store the best model
+                for j in range(0, number_of_PCs + 2):
+                    if print_results:
+                        print("=" * 50)
+                        print(f"Estimating for specifications with {j} random coefficients for model {model_name}")
+
+                    pc_specifications_step_j = {
+                        specification: randvars
+                        for specification, randvars in pc_specifications.items()
+                        if specification.count("PC") + specification.count("price") == j
+                    }
+                    
+                    aic_improved = False
+
+                    for specification, randvars in pc_specifications_step_j.items():
+                        if print_results:
+                            print("-" * 50)
+                            print(f"Trying model: {model_name}, specification: {specification}")
+                        model = self._estimate_mixed_logit(
+                            data=data,
+                            varnames=varnames,
+                            randvars=randvars,
+                            n_draws=n_draws,
+                            num_starting_points=n_starting_points,
+                        )
+                        if print_results:
+                            print(f"LL: {model.loglikelihood}, AIC: {model.aic}")
+                        if model.aic < best_AIC:
+                            best_model = model
+                            best_AIC = model.aic
+                            best_specification = specification
+                            best_embedding_model = model_name
+                            best_varnames = varnames
+                        if model.aic < best_AIC_model:
+                            best_AIC_model = model.aic
+                            best_specification_model = specification
+                            aic_improved = True
+                    if not aic_improved:
+                        if print_results:
+                            print("=" * 50)
+                            print(f"No AIC improvement for models with {j} random coefficients over models with {j-1} random coefficients. Stopping search.")
+                            print(f"Best random coefficient specification for {model_name}: {best_specification_model} with AIC: {best_AIC_model}")
+                        break
+
+        # 5. Store the best model and print if required
         self.model = best_model
         self.best_specification = best_specification
         self.best_embedding_model = best_embedding_model
         self.best_varnames = best_varnames
 
-    def predict(self, data, seed=123):
+        if print_results:
+            print("\n" + "=" * 50)
+            print("Best model summary:")
+            print(f"Embedding model: {self.best_embedding_model}")
+            print(f"Specification: {self.best_specification}")
+            print(f"AIC: {self.model.aic}")
+
+    def predict(self, data, seed=1, avail=None):
         """Predicts the choice probabilities for the given data using the fitted model.
 
         Args:
@@ -245,7 +301,11 @@ class DeepLogit:
                 - product_id: The ID of the product.
 
             seed : int, optional
-                The random seed to use for the prediction. Default is 123.
+                The random seed to use for the prediction. Default is 1.
+
+            avail: numpy.ndarray, optional
+                A binary array indicating the availability of each product in each choice situation.
+                If None, all products are assumed to be available. Default is None.
 
         Returns:
             numpy.ndarray: The predicted choice probabilities.
@@ -256,6 +316,7 @@ class DeepLogit:
             varnames=self.best_varnames,
             ids=data["choice_id"],
             alts=data["product_id"],
+            avail=avail,
             return_proba=True,
             halton=False,
             random_state=seed,
@@ -263,7 +324,7 @@ class DeepLogit:
 
         return predicted_probs
 
-    def predict_diversion_ratios(self, data, seed=123):
+    def predict_diversion_ratios(self, data):
         """Predicts the diversion ratios for the given data using the fitted model.
 
         Args:
@@ -272,51 +333,49 @@ class DeepLogit:
                 - choice_id: The ID of the choice situation.
                 - product_id: The ID of the product.
 
-            seed : int, optional
-                The random seed to use for the prediction. Default is 123.
-
         Returns:
             numpy.ndarray: The predicted diversion ratios.
         """
         assert self.model is not None, "Model has not been fitted yet."
-        coeff_dict = dict(zip(self.model.coeff_names, self.model.coeff_))
-
-        np.random.seed(seed)
-        choice_ids = data["choice_id"].unique()
+        # Extract first and second choice indices
         unique_products = data["product_id"].unique()
+
         J = len(unique_products)
 
         # Prepare an empty count matrix: (J x J).
-        # predicted_count_matrix[j1, j2] = number of times product j2 is chosen second
+        # predicted_diversion_matrix[j1, j2] = probability j2 is choice in limited choice set (i.e. with first choice removed)
         # given that product j1 was chosen first.
-        predicted_count_matrix = np.zeros((J, J), dtype=float)
+        predicted_diversion_matrix = np.zeros((J, J), dtype=float)
+        for j, product in enumerate(unique_products):
 
-        # Loop through each choice situation
-        for i in choice_ids:
-            utilities = self._simulate_individual(data, coeff_dict, i, seed=seed + i)
-            sorted_idx = np.argsort(utilities)[::-1]
-            first_choice_idx = sorted_idx[0]
-            second_choice_idx = sorted_idx[1]
-
-            # Map these back to actual product IDs
-            first_choice_product_id = unique_products[first_choice_idx]
-            second_choice_product_id = unique_products[second_choice_idx]
-
-            # Update predicted_count_matrix
-            row_index_for_first = np.where(unique_products == first_choice_product_id)[
-                0
-            ][0]
-            col_index_for_second = np.where(
-                unique_products == second_choice_product_id
-            )[0][0]
-            predicted_count_matrix[row_index_for_first, col_index_for_second] += 1
-
-        # Compute predicted diversion matrix
-        col_sums = predicted_count_matrix.sum(axis=1, keepdims=True)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            predicted_diversion_matrix = np.where(
-                col_sums != 0, predicted_count_matrix / col_sums, 0
+            # remove product j from available choices
+            product_j_removed = data.apply(
+                lambda row: 0 if row["product_id"] == product else 1,
+                axis=1,
             )
+
+            #compute predicted new probabilities for all individuals after removal of product j
+            s_with_j_removed = self.predict(
+                self.model, data, self.varnames, avail=product_j_removed
+            )
+
+            s_unconditional = self.predict(data)
+
+            # formula for computing s_j->k = average of (s_k^(j) - s_k) / s_j over all individuals
+            # where s_k^(j) is the predicted probability of product k when product j is removed from the choice set
+            # s_k is the predicted probability of product k in the full choice set
+            # s_j is the predicted probability of product j in the full choice set
+            with np.errstate(divide="ignore", invalid="ignore"):
+                diff = s_with_j_removed[:, :] - s_unconditional[:, :]
+                denom = s_unconditional[:, j]
+                probs = diff / denom[:, None]
+            
+            # set probabilities for the first choice product to 0
+            probs[:, j] = 0
+            # average across all individuals who chose product j first
+            avg_probs = np.average(probs, axis=0)
+
+            predicted_diversion_matrix[j, :] = avg_probs
 
         assert np.allclose(predicted_diversion_matrix.sum(axis=1), 1)
 

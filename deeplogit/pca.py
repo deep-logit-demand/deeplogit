@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 
 def compute_principal_components(
     embeddings,
-    num_components=3,
+    num_components=10,
     principal_components_path=None,
     save_to_csv=True,
 ):
