@@ -278,11 +278,12 @@ class DeepLogit:
                             print(f"Best random coefficient specification for {model_name}: {best_specification_model} with AIC: {best_AIC_model}")
                         break
 
-        # 5. Store the best model and print if required
+        # 5. Store the best model and the constructed data dataframe and print if required
         self.model = best_model
         self.best_specification = best_specification
         self.best_embedding_model = best_embedding_model
         self.best_varnames = best_varnames
+        self.data = data
 
         if print_results:
             print("\n" + "=" * 50)
@@ -291,7 +292,7 @@ class DeepLogit:
             print(f"Specification: {self.best_specification}")
             print(f"AIC: {self.model.aic}")
 
-    def predict(self, data, seed=1, avail=None):
+    def predict(self, seed=1, avail=None):
         """Predicts the choice probabilities for the given data using the fitted model.
 
         Args:
@@ -312,10 +313,10 @@ class DeepLogit:
         """
         assert self.model is not None, "Model has not been fitted yet."
         _, predicted_probs = self.model.predict(
-            X=data[self.best_varnames],
+            X=self.data[self.best_varnames],
             varnames=self.best_varnames,
-            ids=data["choice_id"],
-            alts=data["product_id"],
+            ids=self.data["choice_id"],
+            alts=self.data["product_id"],
             avail=avail,
             return_proba=True,
             halton=False,
@@ -324,21 +325,17 @@ class DeepLogit:
 
         return predicted_probs
 
-    def predict_diversion_ratios(self, data):
+    def predict_diversion_ratios(self):
         """Predicts the diversion ratios for the given data using the fitted model.
 
         Args:
-            data : pandas.DataFrame
-                The choice data in long format. Must contain the following columns:
-                - choice_id: The ID of the choice situation.
-                - product_id: The ID of the product.
 
         Returns:
             numpy.ndarray: The predicted diversion ratios.
         """
         assert self.model is not None, "Model has not been fitted yet."
         # Extract first and second choice indices
-        unique_products = data["product_id"].unique()
+        unique_products = self.data["product_id"].unique()
 
         J = len(unique_products)
 
@@ -349,17 +346,17 @@ class DeepLogit:
         for j, product in enumerate(unique_products):
 
             # remove product j from available choices
-            product_j_removed = data.apply(
+            product_j_removed = self.data.apply(
                 lambda row: 0 if row["product_id"] == product else 1,
                 axis=1,
             )
+            #compute predicted probabilities for all individuals in the full choice set
+            s_unconditional = self.predict()
 
             #compute predicted new probabilities for all individuals after removal of product j
             s_with_j_removed = self.predict(
-                self.model, data, self.varnames, avail=product_j_removed
-            )
-
-            s_unconditional = self.predict(data)
+                avail=product_j_removed
+            )          
 
             # formula for computing s_j->k = average of (s_k^(j) - s_k) / s_j over all individuals
             # where s_k^(j) is the predicted probability of product k when product j is removed from the choice set

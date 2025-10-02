@@ -48,13 +48,9 @@ def main():
             print_results=True,
         )
 
-        print(model.best_varnames)
-
         # Predict market shares and diversion ratios
-        predicted_market_shares = model.predict(data=long_choice_data)
-        predicted_diversion_ratios = model.predict_diversion_ratios(
-            data=long_choice_data
-        )
+        predicted_market_shares = model.predict()
+        predicted_diversion_ratios = model.predict_diversion_ratios()
 
         # Save selected embedding model and specification
         results[unstructured_data_name][
