@@ -18,11 +18,15 @@ def main():
     descriptions_csv_path = input_dir_path + "texts/descriptions.csv"
     reviews_csv_path = input_dir_path + "texts/reviews.csv"
 
+    # unstructured_data_list = [
+    #     ("reviews", reviews_csv_path),
+    #     ("titles", titles_csv_path),
+    #     ("descriptions", descriptions_csv_path),
+    #     ("images", images_dir_path),
+    # ]
+
     unstructured_data_list = [
         ("reviews", reviews_csv_path),
-        ("titles", titles_csv_path),
-        ("descriptions", descriptions_csv_path),
-        ("images", images_dir_path),
     ]
 
     results = {}

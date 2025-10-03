@@ -13,6 +13,11 @@ from .embeddings import generate_image_embeddings, generate_text_embeddings
 from .pca import compute_principal_components
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TFHUB_CACHE_DIR"] = os.path.join(
+    os.path.expanduser("~"),
+    ".deeplogit",
+    "tfhub_modules",
+)
 
 
 class DeepLogit:
