@@ -18,16 +18,16 @@ def main():
     descriptions_csv_path = input_dir_path + "texts/descriptions.csv"
     reviews_csv_path = input_dir_path + "texts/reviews.csv"
 
-    # unstructured_data_list = [
-    #     ("reviews", reviews_csv_path),
-    #     ("titles", titles_csv_path),
-    #     ("descriptions", descriptions_csv_path),
-    #     ("images", images_dir_path),
-    # ]
-
     unstructured_data_list = [
         ("reviews", reviews_csv_path),
+        ("titles", titles_csv_path),
+        ("descriptions", descriptions_csv_path),
+        ("images", images_dir_path),
     ]
+
+    # unstructured_data_list = [
+    #     ("reviews", reviews_csv_path),
+    # ]
 
     results = {}
 
@@ -46,15 +46,15 @@ def main():
             variables=variables_attributes,
             unstructured_data_path=unstructured_data_path,
             select_optimal_PC_RCs=True,
-            number_of_PCs=2,
+            number_of_PCs=4,
             n_draws=100,
             n_starting_points=100,
             print_results=True,
         )
 
         # Predict market shares and diversion ratios
-        predicted_market_shares = model.predict()
-        predicted_diversion_ratios = model.predict_diversion_ratios()
+        predicted_market_shares = model.predict(data=long_choice_data)
+        predicted_diversion_ratios = model.predict_diversion_ratios(data=long_choice_data)
 
         # Save selected embedding model and specification
         results[unstructured_data_name][

@@ -77,6 +77,9 @@ class DeepLogit:
         self.best_specification = None
         self.best_embedding_model = None
         self.best_varnames = None
+        self.variables = None
+        self.unstructured_data_path = None
+        self.number_of_PCs = None
 
     def fit(
         self,
@@ -126,70 +129,80 @@ class DeepLogit:
         """
 
         # Create dummy variables for product_id column and add to variables
-        product_dummies = pd.get_dummies(
-            data["product_id"], prefix="product_id"
-        ).astype(int)
+        # product_dummies = pd.get_dummies(
+        #     data["product_id"], prefix="product_id"
+        # ).astype(int)
 
-        data = pd.concat([data, product_dummies], axis=1)
+        # data = pd.concat([data, product_dummies], axis=1)
 
-        # Append the names of the first J - 1 product_id_{product_id} columns to the list of strings variables
-        dummy_columns = [
-            col for col in product_dummies.columns if col != product_dummies.columns[-1]
-        ]
-        variables.extend(dummy_columns)
+        # # Append the names of the first J - 1 product_id_{product_id} columns to the list of strings variables
+        # dummy_columns = [
+        #     col for col in product_dummies.columns if col != product_dummies.columns[-1]
+        # ]
+        # variables.extend(dummy_columns)
 
-        # Determine the type of unstructured data
-        if os.path.isdir(unstructured_data_path):
-            unstructured_data_type = "images"
-        elif os.path.isfile(unstructured_data_path) and unstructured_data_path.endswith(
-            ".csv"
-        ):
-            unstructured_data_type = "text"
-        else:
-            raise ValueError(
-                "Unstructured data path must be a directory (for images) or a CSV file (for text)"
-            )
+        # # Determine the type of unstructured data
+        # if os.path.isdir(unstructured_data_path):
+        #     unstructured_data_type = "images"
+        # elif os.path.isfile(unstructured_data_path) and unstructured_data_path.endswith(
+        #     ".csv"
+        # ):
+        #     unstructured_data_type = "text"
+        # else:
+        #     raise ValueError(
+        #         "Unstructured data path must be a directory (for images) or a CSV file (for text)"
+        #     )
 
-        # 1. Transform unstructured data into embeddings
-        if unstructured_data_type == "images":
-            unstructured_data = self._load_images(unstructured_data_path)
-            embeddings = generate_image_embeddings(unstructured_data)
-        elif unstructured_data_type == "text":
-            unstructured_data = self._load_texts(unstructured_data_path)
-            embeddings = generate_text_embeddings(unstructured_data)
-            text_name = list(embeddings.keys())[0]
-            embeddings = embeddings[list(embeddings.keys())[0]]
-            embeddings = {f"{text_name}_{k}": v for k, v in embeddings.items()}
-        else:
-            raise ValueError("Unstructured data type must be 'images' or 'text'")
+        # # 1. Transform unstructured data into embeddings
+        # if unstructured_data_type == "images":
+        #     unstructured_data = self._load_images(unstructured_data_path)
+        #     embeddings = generate_image_embeddings(unstructured_data)
+        # elif unstructured_data_type == "text":
+        #     unstructured_data = self._load_texts(unstructured_data_path)
+        #     embeddings = generate_text_embeddings(unstructured_data)
+        #     text_name = list(embeddings.keys())[0]
+        #     embeddings = embeddings[list(embeddings.keys())[0]]
+        #     embeddings = {f"{text_name}_{k}": v for k, v in embeddings.items()}
+        # else:
+        #     raise ValueError("Unstructured data type must be 'images' or 'text'")
 
-        # 2. Perform PCA on embeddings
-        principal_components_matrices = compute_principal_components(
-            embeddings,
-            num_components=number_of_PCs,
-        )
+        # # 2. Perform PCA on embeddings
+        # principal_components_matrices = compute_principal_components(
+        #     embeddings,
+        #     num_components=number_of_PCs,
+        # )
 
-        # 3. Join principal components with choice data
-        principal_components = {}
+        # # 3. Join principal components with choice data
+        # principal_components = {}
 
-        for (
-            model_name,
-            principal_components_matrix,
-        ) in principal_components_matrices.items():
-            principal_components_df = pd.DataFrame(principal_components_matrix)
-            principal_components_df["product_id"] = list(unstructured_data.keys())
+        # for (
+        #     model_name,
+        #     principal_components_matrix,
+        # ) in principal_components_matrices.items():
+        #     principal_components_df = pd.DataFrame(principal_components_matrix)
+        #     principal_components_df["product_id"] = list(unstructured_data.keys())
 
-            for i, col in enumerate(principal_components_df.columns):
-                if col == "product_id":
-                    continue
-                # NOTE: Normalize each principal component for better convergence
-                pc_normalized = self._standardize(principal_components_df[col])
-                principal_components[f"{model_name}_pc{i+1}"] = dict(
-                    zip(principal_components_df["product_id"], pc_normalized)
-                )
+        #     for i, col in enumerate(principal_components_df.columns):
+        #         if col == "product_id":
+        #             continue
+        #         # NOTE: Normalize each principal component for better convergence
+        #         pc_normalized = self._standardize(principal_components_df[col])
+        #         principal_components[f"{model_name}_pc{i+1}"] = dict(
+        #             zip(principal_components_df["product_id"], pc_normalized)
+        #         )
 
-        for key, pc_dict in principal_components.items():
-            data[key] = data["product_id"].map(lambda x: pc_dict.get(str(x)))
+        # for key, pc_dict in principal_components.items():
+        #     data[key] = data["product_id"].map(lambda x: pc_dict.get(str(x)))
+
+        data, principal_components_matrices = self._reshape_data(data=data, 
+                                                                 unstructured_data_path=unstructured_data_path, 
+                                                                 variables=variables, 
+                                                                 number_of_PCs=number_of_PCs
+                                                                )
+        
+        self.unstructured_data_path = unstructured_data_path
+        self.variables = variables
+        self.number_of_PCs = number_of_PCs
 
         # 4. Fit mixed logit models and select the best one
         best_model = None
@@ -288,7 +301,6 @@ class DeepLogit:
         self.best_specification = best_specification
         self.best_embedding_model = best_embedding_model
         self.best_varnames = best_varnames
-        self.data = data
 
         if print_results:
             print("\n" + "=" * 50)
@@ -297,7 +309,7 @@ class DeepLogit:
             print(f"Specification: {self.best_specification}")
             print(f"AIC: {self.model.aic}")
 
-    def predict(self, seed=1, avail=None):
+    def predict(self, data, seed=1, avail=None):
         """Predicts the choice probabilities for the given data using the fitted model.
 
         Args:
@@ -317,11 +329,18 @@ class DeepLogit:
             numpy.ndarray: The predicted choice probabilities.
         """
         assert self.model is not None, "Model has not been fitted yet."
+
+        data, _ = self._reshape_data(data=data, 
+                                     unstructured_data_path=self.unstructured_data_path, 
+                                     variables=self.variables, 
+                                     number_of_PCs=self.number_of_PCs
+                                     )
+
         _, predicted_probs = self.model.predict(
-            X=self.data[self.best_varnames],
+            X=data[self.best_varnames],
             varnames=self.best_varnames,
-            ids=self.data["choice_id"],
-            alts=self.data["product_id"],
+            ids=data["choice_id"],
+            alts=data["product_id"],
             avail=avail,
             return_proba=True,
             halton=False,
@@ -330,17 +349,28 @@ class DeepLogit:
 
         return predicted_probs
 
-    def predict_diversion_ratios(self):
+    def predict_diversion_ratios(self, data):
         """Predicts the diversion ratios for the given data using the fitted model.
 
         Args:
+        data : pandas.DataFrame the choice data in long format. Must contain the following columns:
+            - choice_id: The ID of the choice situation.
+            - product_id: The ID of the product. The product ids must be the same as in the data used to fit the model.
+            - choice: The choice indicator (1 for chosen alternative, 0 otherwise).
 
         Returns:
             numpy.ndarray: The predicted diversion ratios.
         """
         assert self.model is not None, "Model has not been fitted yet."
+
+        data, _ = self._reshape_data(data=data, 
+                                     unstructured_data_path=self.unstructured_data_path, 
+                                     variables=self.variables, 
+                                     number_of_PCs=self.number_of_PCs
+                                     )
+
         # Extract first and second choice indices
-        unique_products = self.data["product_id"].unique()
+        unique_products = data["product_id"].unique()
 
         J = len(unique_products)
 
@@ -351,15 +381,16 @@ class DeepLogit:
         for j, product in enumerate(unique_products):
 
             # remove product j from available choices
-            product_j_removed = self.data.apply(
+            product_j_removed = data.apply(
                 lambda row: 0 if row["product_id"] == product else 1,
                 axis=1,
             )
             #compute predicted probabilities for all individuals in the full choice set
-            s_unconditional = self.predict()
+            s_unconditional = self.predict(data=data)
 
             #compute predicted new probabilities for all individuals after removal of product j
             s_with_j_removed = self.predict(
+                data=data,
                 avail=product_j_removed
             )          
 
@@ -382,6 +413,74 @@ class DeepLogit:
         assert np.allclose(predicted_diversion_matrix.sum(axis=1), 1)
 
         return predicted_diversion_matrix
+    
+    def _reshape_data(self, data, unstructured_data_path, variables, number_of_PCs):
+        # Create dummy variables for product_id column and add to variables
+        product_dummies = pd.get_dummies(
+            data["product_id"], prefix="product_id"
+        ).astype(int)
+
+        data = pd.concat([data, product_dummies], axis=1)
+
+        # Append the names of the first J - 1 product_id_{product_id} columns to the list of strings variables
+        dummy_columns = [
+            col for col in product_dummies.columns if col != product_dummies.columns[-1]
+        ]
+        variables.extend(dummy_columns)
+
+        # Determine the type of unstructured data
+        if os.path.isdir(unstructured_data_path):
+            unstructured_data_type = "images"
+        elif os.path.isfile(unstructured_data_path) and unstructured_data_path.endswith(
+            ".csv"
+        ):
+            unstructured_data_type = "text"
+        else:
+            raise ValueError(
+                "Unstructured data path must be a directory (for images) or a CSV file (for text)"
+            )
+
+        # 1. Transform unstructured data into embeddings
+        if unstructured_data_type == "images":
+            unstructured_data = self._load_images(unstructured_data_path)
+            embeddings = generate_image_embeddings(unstructured_data)
+        elif unstructured_data_type == "text":
+            unstructured_data = self._load_texts(unstructured_data_path)
+            embeddings = generate_text_embeddings(unstructured_data)
+            text_name = list(embeddings.keys())[0]
+            embeddings = embeddings[list(embeddings.keys())[0]]
+            embeddings = {f"{text_name}_{k}": v for k, v in embeddings.items()}
+        else:
+            raise ValueError("Unstructured data type must be 'images' or 'text'")
+
+        # 2. Perform PCA on embeddings
+        principal_components_matrices = compute_principal_components(
+            embeddings,
+            num_components=number_of_PCs,
+        )
+
+        # 3. Join principal components with choice data
+        principal_components = {}
+
+        for (
+            model_name,
+            principal_components_matrix,
+        ) in principal_components_matrices.items():
+            principal_components_df = pd.DataFrame(principal_components_matrix)
+            principal_components_df["product_id"] = list(unstructured_data.keys())
+
+            for i, col in enumerate(principal_components_df.columns):
+                if col == "product_id":
+                    continue
+                # NOTE: Normalize each principal component for better convergence
+                pc_normalized = self._standardize(principal_components_df[col])
+                principal_components[f"{model_name}_pc{i+1}"] = dict(
+                    zip(principal_components_df["product_id"], pc_normalized)
+                )
+
+        for key, pc_dict in principal_components.items():
+            data[key] = data["product_id"].map(lambda x: pc_dict.get(str(x)))
+        return data, principal_components_matrices
 
     def __getattr__(self, name):
         """Override the __getattr__ method to allow access to the attributes of the xlogit.MixedLogit object."""
