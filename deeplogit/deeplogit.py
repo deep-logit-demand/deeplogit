@@ -194,7 +194,7 @@ class DeepLogit:
         # for key, pc_dict in principal_components.items():
         #     data[key] = data["product_id"].map(lambda x: pc_dict.get(str(x)))
 
-        data, principal_components_matrices = self._reshape_data(data=data, 
+        data, principal_components_matrices = self._reshape_data(choice_data=data, 
                                                                  unstructured_data_path=unstructured_data_path, 
                                                                  variables=variables, 
                                                                  number_of_PCs=number_of_PCs
@@ -330,7 +330,7 @@ class DeepLogit:
         """
         assert self.model is not None, "Model has not been fitted yet."
 
-        data, _ = self._reshape_data(data=data, 
+        data, _ = self._reshape_data(choice_data=data, 
                                      unstructured_data_path=self.unstructured_data_path, 
                                      variables=self.variables, 
                                      number_of_PCs=self.number_of_PCs
@@ -363,7 +363,7 @@ class DeepLogit:
         """
         assert self.model is not None, "Model has not been fitted yet."
 
-        data, _ = self._reshape_data(data=data, 
+        data, _ = self._reshape_data(choice_data=data, 
                                      unstructured_data_path=self.unstructured_data_path, 
                                      variables=self.variables, 
                                      number_of_PCs=self.number_of_PCs
@@ -414,7 +414,30 @@ class DeepLogit:
 
         return predicted_diversion_matrix
     
-    def _reshape_data(self, data, unstructured_data_path, variables, number_of_PCs):
+    def _reshape_data(self, choice_data, unstructured_data_path, variables, number_of_PCs):
+        """Reshape the data to match structure expected by fit function.
+
+        Args:
+            choice_data : pandas.DataFrame the choice data in long format. Must contain the following columns:
+                - choice_id: The ID of the choice situation.
+                - product_id: The ID of the product. The product ids must be the same as in the data used to fit the model.
+                - choice: The choice indicator (1 for chosen alternative, 0 otherwise).
+            unstructured_data_path : str
+                The path to the unstructured data. 
+                If the data is images, this should be the path to the directory containing the images. 
+                If the data is text, this should be the path to the CSV file containing the text data.
+            variables : list
+                The list of variable names that vary both across products and consumers. 
+                The names must match the column names in the data. Must include the price variable.
+            number_of_PCs : int
+                The number of principal components to extract from the unstructured data.
+
+        Returns:
+            pandas.DataFrame, dict: The reshaped data and the principal components matrices.
+        """
+        # Copy the choice data to avoid modifying the original data
+        data = choice_data.copy()
+
         # Create dummy variables for product_id column and add to variables
         product_dummies = pd.get_dummies(
             data["product_id"], prefix="product_id"
