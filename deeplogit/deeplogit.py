@@ -336,6 +336,9 @@ class DeepLogit:
                                      number_of_PCs=self.number_of_PCs
                                      )
 
+        print(data[self.best_varnames].columns)
+        print(self.best_varnames)
+
         _, predicted_probs = self.model.predict(
             X=data[self.best_varnames],
             varnames=self.best_varnames,
@@ -363,11 +366,11 @@ class DeepLogit:
         """
         assert self.model is not None, "Model has not been fitted yet."
 
-        data, _ = self._reshape_data(choice_data=data, 
-                                     unstructured_data_path=self.unstructured_data_path, 
-                                     variables=self.variables, 
-                                     number_of_PCs=self.number_of_PCs
-                                     )
+        # data, _ = self._reshape_data(choice_data=data, 
+        #                              unstructured_data_path=self.unstructured_data_path, 
+        #                              variables=self.variables, 
+        #                              number_of_PCs=self.number_of_PCs
+        #                              )
 
         # Extract first and second choice indices
         unique_products = data["product_id"].unique()
