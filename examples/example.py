@@ -42,7 +42,7 @@ def main():
             variables=variables_attributes,
             unstructured_data_path=unstructured_data_path,
             select_optimal_PC_RCs=True,
-            number_of_PCs=4,
+            number_of_PCs=6,
             n_draws=100,
             n_starting_points=100,
             print_results=True,

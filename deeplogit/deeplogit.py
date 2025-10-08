@@ -128,72 +128,6 @@ class DeepLogit:
             None
         """
 
-        # Create dummy variables for product_id column and add to variables
-        # product_dummies = pd.get_dummies(
-        #     data["product_id"], prefix="product_id"
-        # ).astype(int)
-
-        # data = pd.concat([data, product_dummies], axis=1)
-
-        # # Append the names of the first J - 1 product_id_{product_id} columns to the list of strings variables
-        # dummy_columns = [
-        #     col for col in product_dummies.columns if col != product_dummies.columns[-1]
-        # ]
-        # variables.extend(dummy_columns)
-
-        # # Determine the type of unstructured data
-        # if os.path.isdir(unstructured_data_path):
-        #     unstructured_data_type = "images"
-        # elif os.path.isfile(unstructured_data_path) and unstructured_data_path.endswith(
-        #     ".csv"
-        # ):
-        #     unstructured_data_type = "text"
-        # else:
-        #     raise ValueError(
-        #         "Unstructured data path must be a directory (for images) or a CSV file (for text)"
-        #     )
-
-        # # 1. Transform unstructured data into embeddings
-        # if unstructured_data_type == "images":
-        #     unstructured_data = self._load_images(unstructured_data_path)
-        #     embeddings = generate_image_embeddings(unstructured_data)
-        # elif unstructured_data_type == "text":
-        #     unstructured_data = self._load_texts(unstructured_data_path)
-        #     embeddings = generate_text_embeddings(unstructured_data)
-        #     text_name = list(embeddings.keys())[0]
-        #     embeddings = embeddings[list(embeddings.keys())[0]]
-        #     embeddings = {f"{text_name}_{k}": v for k, v in embeddings.items()}
-        # else:
-        #     raise ValueError("Unstructured data type must be 'images' or 'text'")
-
-        # # 2. Perform PCA on embeddings
-        # principal_components_matrices = compute_principal_components(
-        #     embeddings,
-        #     num_components=number_of_PCs,
-        # )
-
-        # # 3. Join principal components with choice data
-        # principal_components = {}
-
-        # for (
-        #     model_name,
-        #     principal_components_matrix,
-        # ) in principal_components_matrices.items():
-        #     principal_components_df = pd.DataFrame(principal_components_matrix)
-        #     principal_components_df["product_id"] = list(unstructured_data.keys())
-
-        #     for i, col in enumerate(principal_components_df.columns):
-        #         if col == "product_id":
-        #             continue
-        #         # NOTE: Normalize each principal component for better convergence
-        #         pc_normalized = self._standardize(principal_components_df[col])
-        #         principal_components[f"{model_name}_pc{i+1}"] = dict(
-        #             zip(principal_components_df["product_id"], pc_normalized)
-        #         )
-
-        # for key, pc_dict in principal_components.items():
-        #     data[key] = data["product_id"].map(lambda x: pc_dict.get(str(x)))
-
         data, principal_components_matrices = self._reshape_data(choice_data=data, 
                                                                  unstructured_data_path=unstructured_data_path, 
                                                                  variables=variables, 
@@ -203,6 +137,7 @@ class DeepLogit:
         self.unstructured_data_path = unstructured_data_path
         self.variables = variables
         self.number_of_PCs = number_of_PCs
+        self.unique_products = data["product_id"].unique()
 
         # 4. Fit mixed logit models and select the best one
         best_model = None
@@ -335,9 +270,10 @@ class DeepLogit:
                                      variables=self.variables, 
                                      number_of_PCs=self.number_of_PCs
                                      )
+        
+        unique_products = data["product_id"].unique()
 
-        print(data[self.best_varnames].columns)
-        print(self.best_varnames)
+        assert unique_products.all() == self.unique_products.all(), "Product IDs in the data do not match those in the fitted model."
 
         _, predicted_probs = self.model.predict(
             X=data[self.best_varnames],
@@ -368,6 +304,8 @@ class DeepLogit:
 
         # Extract first and second choice indices
         unique_products = data["product_id"].unique()
+
+        assert unique_products.all() == self.unique_products.all(), "Product IDs in the data do not match those in the fitted model."
 
         J = len(unique_products)
 
