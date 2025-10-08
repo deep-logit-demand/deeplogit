@@ -366,12 +366,6 @@ class DeepLogit:
         """
         assert self.model is not None, "Model has not been fitted yet."
 
-        # data, _ = self._reshape_data(choice_data=data, 
-        #                              unstructured_data_path=self.unstructured_data_path, 
-        #                              variables=self.variables, 
-        #                              number_of_PCs=self.number_of_PCs
-        #                              )
-
         # Extract first and second choice indices
         unique_products = data["product_id"].unique()
 
