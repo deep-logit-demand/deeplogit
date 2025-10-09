@@ -83,7 +83,7 @@ class DeepLogit:
 
     def fit(
         self,
-        data,
+        data_path,
         variables,
         unstructured_data_path,
         select_optimal_PC_RCs=True,
@@ -91,12 +91,13 @@ class DeepLogit:
         n_draws=100,
         n_starting_points=100,
         print_results=True,
+        limit_cores=True,
     ):
         """Fits a mixed logit model with unstructured data embeddings.
 
         Args:
-            data : pandas.DataFrame
-                The choice data in long format where each observation is a consumer-product pair. Must contain the following columns:
+            data_path : str
+                The path to choice data in long format where each observation is a consumer-product pair. Must contain the following columns:
                 - choice_id: Consumer identifier
                 - product_id: Product identifier
                 - choice: The choice indicator (1 for chosen alternative, 0 otherwise).
@@ -124,11 +125,18 @@ class DeepLogit:
             print_results : bool, optional
                 Whether to print the results of each model fit. Default is True.
 
+            limit_cores : bool, optional
+                Whether to limit the number of CPU cores used for estimation. Default is True.
+
         Returns:
             None
         """
 
-        data, principal_components_matrices = self._reshape_data(choice_data=data, 
+        # Store unshaped data for later use in prediction
+        self.data_path = data_path
+
+        # 1. Reshape data to wide format and join with principal components
+        data, principal_components_matrices = self._reshape_data(choice_data_path=data_path, 
                                                                  unstructured_data_path=unstructured_data_path, 
                                                                  variables=variables, 
                                                                  number_of_PCs=number_of_PCs
@@ -139,7 +147,7 @@ class DeepLogit:
         self.number_of_PCs = number_of_PCs
         self.unique_products = data["product_id"].unique()
 
-        # 4. Fit mixed logit models and select the best one
+        # 2. Fit mixed logit models and select the best one
         best_model = None
         best_specification = None
         best_embedding_model = None
@@ -164,7 +172,7 @@ class DeepLogit:
                     k: v for k, v in pc_specifications.items() if len(v) == max_randvars
                 }
 
-                for specification, randvars in pc_specifications_step_j.items():
+                for specification, randvars in pc_specifications.items():
                         if print_results:
                             print("-" * 50)
                             print(f"Trying model: {model_name}, specification: {specification}")
@@ -174,6 +182,7 @@ class DeepLogit:
                             randvars=randvars,
                             n_draws=n_draws,
                             num_starting_points=n_starting_points,
+                            limit_cores=limit_cores,
                         )
                         if print_results:
                             print(f"LL: {model.loglikelihood}, AIC: {model.aic}")
@@ -211,6 +220,7 @@ class DeepLogit:
                             randvars=randvars,
                             n_draws=n_draws,
                             num_starting_points=n_starting_points,
+                            limit_cores=limit_cores,
                         )
                         if print_results:
                             print(f"LL: {model.loglikelihood}, AIC: {model.aic}")
@@ -231,7 +241,7 @@ class DeepLogit:
                             print(f"Best random coefficient specification for {model_name}: {best_specification_model} with AIC: {best_AIC_model}")
                         break
 
-        # 5. Store the best model and the constructed data dataframe and print if required
+        # 3. Store the best model and the constructed data dataframe and print if required
         self.model = best_model
         self.best_specification = best_specification
         self.best_embedding_model = best_embedding_model
@@ -244,14 +254,15 @@ class DeepLogit:
             print(f"Specification: {self.best_specification}")
             print(f"AIC: {self.model.aic}")
 
-    def predict(self, data, seed=1, avail=None):
-        """Predicts the choice probabilities for the given data using the fitted model.
+    def predict(self, data_path=None, seed=1, avail=None):
+        """Reshapes the given data and predicts the choice probabilities for the given data using the fitted model.
 
         Args:
-            data : pandas.DataFrame
+            data (Optional) : pandas.DataFrame
                 The choice data in long format. Must contain the following columns:
                 - choice_id: The ID of the choice situation.
                 - product_id: The ID of the product.
+                If data is None, the data used to fit the model is used.
 
             seed : int, optional
                 The random seed to use for the prediction. Default is 1.
@@ -265,7 +276,10 @@ class DeepLogit:
         """
         assert self.model is not None, "Model has not been fitted yet."
 
-        data, _ = self._reshape_data(choice_data=data, 
+        if data_path is None:
+            data_path = self.data_path
+
+        data, _ = self._reshape_data(choice_data_path=data_path, 
                                      unstructured_data_path=self.unstructured_data_path, 
                                      variables=self.variables, 
                                      number_of_PCs=self.number_of_PCs
@@ -275,6 +289,30 @@ class DeepLogit:
 
         assert unique_products.all() == self.unique_products.all(), "Product IDs in the data do not match those in the fitted model."
 
+        predicted_probs = self._predict(data=data, seed=seed, avail=avail)
+
+        return predicted_probs
+    
+    def _predict(self, data=None, seed=1, avail=None):
+        """Predicts the choice probabilities for the given data using the fitted model.
+
+        Args:
+            data (Optional) : pandas.DataFrame
+                The choice data in long format. Must contain the following columns:
+                - choice_id: The ID of the choice situation.
+                - product_id: The ID of the product.
+                If data is None, the data used to fit the model is used.
+
+            seed : int, optional
+                The random seed to use for the prediction. Default is 1.
+
+            avail: numpy.ndarray, optional
+                A binary array indicating the availability of each product in each choice situation.
+                If None, all products are assumed to be available. Default is None.
+
+        Returns:
+            numpy.ndarray: The predicted choice probabilities.
+        """
         _, predicted_probs = self.model.predict(
             X=data[self.best_varnames],
             varnames=self.best_varnames,
@@ -288,19 +326,29 @@ class DeepLogit:
 
         return predicted_probs
 
-    def predict_diversion_ratios(self, data):
+    def predict_diversion_ratios(self, data_path=None):
         """Predicts the diversion ratios for the given data using the fitted model.
 
         Args:
-        data : pandas.DataFrame the choice data in long format. Must contain the following columns:
+        data_path (Optional) : str path to choice data in long format. Must contain the following columns:
             - choice_id: The ID of the choice situation.
             - product_id: The ID of the product. The product ids must be the same as in the data used to fit the model.
             - choice: The choice indicator (1 for chosen alternative, 0 otherwise).
+            If data is None, the data used to fit the model is used.
 
         Returns:
             numpy.ndarray: The predicted diversion ratios.
         """
         assert self.model is not None, "Model has not been fitted yet."
+
+        if data_path is None:
+            data_path = self.data_path
+
+        data, _ = self._reshape_data(choice_data_path=data_path, 
+                                     unstructured_data_path=self.unstructured_data_path, 
+                                     variables=self.variables, 
+                                     number_of_PCs=self.number_of_PCs
+                                     )
 
         # Extract first and second choice indices
         unique_products = data["product_id"].unique()
@@ -321,10 +369,10 @@ class DeepLogit:
                 axis=1,
             )
             #compute predicted probabilities for all individuals in the full choice set
-            s_unconditional = self.predict(data=data)
+            s_unconditional = self._predict(data=data)
 
             #compute predicted new probabilities for all individuals after removal of product j
-            s_with_j_removed = self.predict(
+            s_with_j_removed = self._predict(
                 data=data,
                 avail=product_j_removed
             )          
@@ -349,7 +397,7 @@ class DeepLogit:
 
         return predicted_diversion_matrix
     
-    def _reshape_data(self, choice_data, unstructured_data_path, variables, number_of_PCs):
+    def _reshape_data(self, choice_data_path, unstructured_data_path, variables, number_of_PCs):
         """Reshape the data to match structure expected by fit function.
 
         Args:
@@ -371,7 +419,7 @@ class DeepLogit:
             pandas.DataFrame, dict: The reshaped data and the principal components matrices.
         """
         # Copy the choice data to avoid modifying the original data
-        data = choice_data.copy()
+        data = pd.read_csv(choice_data_path)
 
         # Create dummy variables for product_id column and add to variables
         product_dummies = pd.get_dummies(
@@ -398,7 +446,7 @@ class DeepLogit:
                 "Unstructured data path must be a directory (for images) or a CSV file (for text)"
             )
 
-        # 1. Transform unstructured data into embeddings
+        # Transform unstructured data into embeddings
         if unstructured_data_type == "images":
             unstructured_data = self._load_images(unstructured_data_path)
             embeddings = generate_image_embeddings(unstructured_data)
@@ -411,13 +459,13 @@ class DeepLogit:
         else:
             raise ValueError("Unstructured data type must be 'images' or 'text'")
 
-        # 2. Perform PCA on embeddings
+        # Perform PCA on embeddings
         principal_components_matrices = compute_principal_components(
             embeddings,
             num_components=number_of_PCs,
         )
 
-        # 3. Join principal components with choice data
+        # Join principal components with choice data
         principal_components = {}
 
         for (
@@ -603,6 +651,7 @@ class DeepLogit:
         num_starting_points=100,
         seed=1,
         halton=False,
+        limit_cores=True,
     ):
         """Estimates a mixed logit model with given data and specifications using the xlogit library."""
 
@@ -615,7 +664,11 @@ class DeepLogit:
             halton=halton,
         )
 
-        n_cores = max(1, cpu_count() - 1)
+        total = cpu_count()
+        n_cores = max(1, total - 1)
+        if limit_cores:
+            limit_ratio = 0.25
+            n_cores = int(min(n_cores, total * limit_ratio))
 
         with Pool(n_cores) as pool:
             results = pool.map(

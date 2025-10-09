@@ -12,7 +12,7 @@ from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from tensorflow.keras.applications import inception_v3, resnet50, vgg16, vgg19, xception
+from tensorflow.keras.applications import inception_v3, resnet50, vgg19, xception
 
 # -------------------- Image Embeddings --------------------
 
@@ -32,7 +32,6 @@ def initialize_image_models():
     """
     models = {}
     model_configs = [
-        ("VGG16", vgg16.VGG16),
         ("VGG19", vgg19.VGG19),
         ("ResNet50", resnet50.ResNet50),
         ("Xception", xception.Xception),
@@ -62,7 +61,6 @@ def get_preprocessing_function(model_name):
         Corresponding preprocessing function.
     """
     preprocessing_functions = {
-        "VGG16": vgg16.preprocess_input,
         "VGG19": vgg19.preprocess_input,
         "ResNet50": resnet50.preprocess_input,
         "Xception": xception.preprocess_input,

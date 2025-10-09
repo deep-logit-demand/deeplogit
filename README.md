@@ -4,6 +4,10 @@
 
 This package provides a class [`DeepLogit`](https://github.com/franklinshe/DeepLogit/blob/master/deeplogit/deeplogit.py) that can be used to estimate a mixed logit model with text and image embeddings extracted using deep learning models. The class provides methods to preprocess text and image data, fit the model, and make predictions.
 
+The package estimates models using four machine learning models for images and four machine learning models for texts. For images, the machine learning models used are: [VGG19](https://arxiv.org/abs/1409.1556), [ResNet50](https://arxiv.org/abs/1512.03385), [Xception](https://arxiv.org/abs/1610.02357), and [InceptionV3](https://arxiv.org/abs/1512.00567). For texts, the machine learning models used are: [Count](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.CountVectorizer.html), [TF-IDF](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html#sklearn.feature_extraction.text.TfidfVectorizer), [USE](https://arxiv.org/abs/1803.11175), and [ST](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2). The package will estimate mixed logit models using principal components extracted each machine learning architecture separately and select the best model which achieves the best performance. The package will either apply a selection algorithm to choose the combination of principal components which minimizes AIC or estimate the model with the maximum number of principal components selected. 
+
+Choice attributes can also be included (see the example, where price and position attributes are used). 
+
 The DeepLogit package relies heavily on the xlogit library for the implementation of the mixed logit model. For more information on the xlogit library, see the [xlogit repository](https://github.com/arteagac/xlogit/).
 
 
@@ -27,7 +31,7 @@ from deeplogit import DeepLogit
 
 # Load long choice data
 input_dir_path = "example_data/"
-long_choice_data = pd.read_csv(input_dir_path + "long_choice_data.csv")
+long_choice_data_path = input_dir_path + "long_choice_data.csv"
 
 # Define structured attribute names
 variables_attributes = ["price", "position"]
@@ -37,22 +41,26 @@ descriptions_csv_path = input_dir_path + "texts/descriptions.csv"
 images_dir_path = input_dir_path + "images/"
 ```
 
-### 2. Initialize and fit the model
+### 2. Initialize and fit a model for each unstructured data type
 
 ```python
 # Initialize the model
 model = DeepLogit()
 
+# For this example, let's fit a model using image data
+unstructured_data_path = images_dir_path
+
 # Fit the model
 model.fit(
-    data=long_choice_data,
+    data_path=long_choice_data_path,
     variables=variables_attributes,
-    unstructured_data_path=descriptions_csv_path,
+    unstructured_data_path=unstructured_data_path,
     select_optimal_PC_RCs=True,
-    number_of_PCs=3,
+    number_of_PCs=6,
     n_draws=100,
     n_starting_points=100,
     print_results=True,
+    limit_cores=True,
 )
 ```
 
@@ -77,7 +85,8 @@ The `fit` method has the following parameters:
     The number of starting points to use in the estimation. Default is 100.
 - `print_results` : bool, optional
     Whether to print the results of each model fit. Default is True.
-
+- `limit_cores` : bool, optional
+    Whether to limit the number of CPU cores used for estimation. Default is True.
 
 ### 3. Access model diagnostics
 
@@ -94,25 +103,26 @@ print(f"Fitted model estimate standard errors: {model.stderr}")
 
 ```python
 # Predict market shares (J x N matrix)
-predicted_market_shares = model.predict(data=long_choice_data)
+predicted_market_shares = model.predict()
 
 # Predict diversion ratios (J x J matrix)
-predicted_diversion_ratios = model.predict_diversion_ratios(data=long_choice_data)
+predicted_diversion_ratios = model.predict_diversion_ratios()
 ```
 
 ### 5. Another fit example
 
 ```python
-# Example: Use images, extract 5 PCs, and include all PCs without optimization
+# Example: Use images, extract 6 PCs, and include all PCs without optimization
 model.fit(
-    data=long_choice_data,
+    data_path=long_choice_data_path,
     variables=variables_attributes,
     unstructured_data_path=images_dir_path,
     select_optimal_PC_RCs=False,
-    number_of_PCs=5,
+    number_of_PCs=6,
     n_draws=100,
     n_starting_points=100,
     print_results=True,
+    limit_cores=True,
 )
 ```
 
