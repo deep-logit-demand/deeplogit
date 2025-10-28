@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="deeplogit",
-    version="0.1.3",
+    version="0.1.4",
     description="Mixed Logit Estimation with Text and Image Embeddings Extracted Using Deep Learning Models",
     url="https://github.com/deep-logit-demand/deeplogit",
     author="",
