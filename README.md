@@ -4,7 +4,7 @@
 
 This package provides a class [`DeepLogit`](https://github.com/franklinshe/DeepLogit/blob/master/deeplogit/deeplogit.py) that can be used to estimate a mixed logit model with text and image embeddings extracted using deep learning models. The class provides methods to preprocess text and image data, fit the model, and make predictions.
 
-The package estimates models using four machine learning models for images and four machine learning models for texts. For images, the machine learning models used are: [VGG19](https://arxiv.org/abs/1409.1556), [ResNet50](https://arxiv.org/abs/1512.03385), [Xception](https://arxiv.org/abs/1610.02357), and [InceptionV3](https://arxiv.org/abs/1512.00567). For texts, the machine learning models used are: [Count](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.CountVectorizer.html), [TF-IDF](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html#sklearn.feature_extraction.text.TfidfVectorizer), [USE](https://arxiv.org/abs/1803.11175), and [ST](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2). The package will estimate mixed logit models using principal components extracted from each machine learning architecture separately and select the best model which achieves the best performance. The package will either apply a selection algorithm to choose the combination of principal components which minimizes AIC or estimate the model with the maximum number of principal components selected. 
+The package estimates models using four machine learning models for images and four machine learning models for texts. For images, the machine learning models used are: [VGG19](https://arxiv.org/abs/1409.1556), [ResNet50](https://arxiv.org/abs/1512.03385), [Xception](https://arxiv.org/abs/1610.02357), and [InceptionV3](https://arxiv.org/abs/1512.00567). For texts, the machine learning models used are: [Count](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.CountVectorizer.html), [TF-IDF](https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html#sklearn.feature_extraction.text.TfidfVectorizer), [USE](https://arxiv.org/abs/1803.11175), and [ST](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2). The package will estimate mixed logit models with random coefficients using principal components extracted from each machine learning architecture separately and select the model which achieves the best performance. The package will either apply a selection algorithm (Algorithm 1 as defined in [Demand Estimation with Text and Images](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4588941)) to select the combination of random coefficients which minimizes AIC or select the maximum number of random coefficients. See the below example for details.
 
 Choice attributes can also be included (see the example, where price and position attributes are used). 
 
@@ -51,6 +51,7 @@ model = DeepLogit()
 unstructured_data_path = images_dir_path
 
 # Fit the model
+# In this example we are generating 6 principal components and applying the model selection algorithm
 model.fit(
     data_path=long_choice_data_path,
     variables=variables_attributes,
@@ -76,7 +77,7 @@ The `fit` method has the following parameters:
 - `unstructured_data_path` : str
     The path to the unstructured data. If the data is images, this should be the path to the directory containing the images. If the data is text, this should be the path to the CSV file containing the text data.
 - `select_optimal_PC_RCs` : bool, optional
-    True to select the AIC-minimizing combination of principal components via brute force algorithm. False to include all principal components without optimization. Default is True.
+    True to select the AIC-minimizing combination of principal components via selection algorithm. False to include all principal components without optimization. Default is True.
 - `number_of_PCs` : int, optional
     The number of principal components to extract from the unstructured data. Default is 3.
 - `n_draws` : int, optional
